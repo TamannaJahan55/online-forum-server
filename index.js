@@ -30,6 +30,7 @@ async function run() {
 
     const postCollection = client.db("forumDb").collection("post");
     const userCollection = client.db("forumDb").collection("users");
+    const announcementCollection = client.db("forumDb").collection("announcements");
 
     // middlewares
     const verifyToken = (req, res, next) => {
@@ -176,35 +177,56 @@ async function run() {
       res.send(result);
     })
 
-    app.delete('/post/post_time/:email/:id', async (req, res) => {
+    app.delete('/post/post_time/:email/:id', verifyToken, async (req, res) => {
       const email = req.params.email;
       const id = req.params.id;
       const result = await postCollection.deleteOne({ email: email, _id: new ObjectId(id) });
       res.send(result);
     })
 
-    // // payment intent
-    // app.post('/create-payment-intent', async (req, res) => {
-    //   const { price } = req.body;
-    //   const amount = parseInt(price * 100);
-    //   console.log(amount, 'amount inside the intent');
+    // announcement
+    app.get('/announcement', async (req, res) => {
+      const result = await announcementCollection.find().toArray();
+      res.send(result);
+    })
 
-    //   const paymentIntent = await stripe.paymentIntents.create({
-    //     amount: amount,
-    //     currency: 'usd',
-    //     payment_method_types: ['card']
-    //   });
+    app.post('/announcement', async (req, res) => {
+      const item = req.body;
+      const result = await announcementCollection.insertOne(item);
+      res.send(result);
+    })
 
-    //   res.send({
-    //     clientSecret: paymentIntent.client_secret
-    //   })
-    // })
+    // payment intent
+    app.post('/create-payment-intent', async (req, res) => {
+      const { subscription_fee } = req.body;
+      const amount = parseInt(subscription_fee * 100);
+      console.log(amount, 'amount inside the intent');
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
+
+    app.get('/payments/:email', async (req, res) => {
+      const query = { email: req.params.email }
+      if (req.params.email !== req.decoded.email) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    })
 
 
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
